@@ -1,0 +1,6 @@
+[package]
+name = "sparse-octree"
+version = "0.1.0"
+authors = ["André <andre.terranchie@gmail.com>"]
+
+[dependencies]
