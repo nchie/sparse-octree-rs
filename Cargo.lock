@@ -1,4 +1,4 @@
 [[package]]
-name = "sparse_octree"
+name = "sparse-octree"
 version = "0.1.0"
 

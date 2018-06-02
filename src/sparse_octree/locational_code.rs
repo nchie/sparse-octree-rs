@@ -11,6 +11,11 @@ impl LocationalCode {
         LocationalCode(1)
     }
 
+    // TODO: Remove
+    pub fn new_debug(code: u64) -> LocationalCode {
+        LocationalCode(code)
+    }
+
     pub fn parent(&self) -> Option<LocationalCode> {
         match self.depth() {
             1 => None,

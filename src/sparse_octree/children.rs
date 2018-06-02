@@ -13,6 +13,12 @@ pub enum ChildCode {
     TRB = 0b111
 }
 
+impl ChildCode {
+    pub fn flag(&self) -> u8 {
+        1 << *self as u8
+    }
+}
+
 impl From<u64> for ChildCode {
     fn from(mut from: u64) -> ChildCode {
         from &= 0b111;
@@ -31,16 +37,16 @@ impl From<u64> for ChildCode {
     }
 }
 
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ChildrenFlags {
-    BLF = 0b0000_0001,
-    BRF = 0b0000_0010,
-    BLB = 0b0000_0100,
-    BRB = 0b0000_1000,
+// #[repr(u8)]
+// #[derive(Debug, Copy, Clone)]
+// pub enum ChildrenFlags {
+//     BLF = 0b0000_0001,
+//     BRF = 0b0000_0010,
+//     BLB = 0b0000_0100,
+//     BRB = 0b0000_1000,
 
-    TLF = 0b0001_0000,
-    TRF = 0b0010_0000,
-    TLB = 0b0100_0000,
-    TRB = 0b1000_0000
-}
+//     TLF = 0b0001_0000,
+//     TRF = 0b0010_0000,
+//     TLB = 0b0100_0000,
+//     TRB = 0b1000_0000
+// }
