@@ -1,11 +1,10 @@
 mod sparse_octree;
-mod children;
-mod locational_code;
+mod child_id;
+mod node_location;
 
 pub use self::sparse_octree::SparseOctree;
-//pub use self::children::ChildrenFlags;
-pub use self::children::ChildCode;
-pub use self::locational_code::LocationalCode;
+pub use self::child_id::ChildId;
+pub use self::node_location::NodeLocation;
 
 
 
