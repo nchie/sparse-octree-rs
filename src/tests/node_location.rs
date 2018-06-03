@@ -24,7 +24,7 @@ pub fn depth_max_dimensions() {
 }
 
 #[test]
-pub fn create_from_coordinates() {
+pub fn coordinates() {
     let root = NodeLocation::new_root();
 
     // (3, 3, 3) @ d3 should be top right back > top right back
@@ -70,6 +70,17 @@ pub fn create_from_coordinates() {
         .child(ChildId::BLF).unwrap()
         .child(ChildId::TRB).unwrap()
     );
-}
 
+    let depth = 8;
+    let max = 2_i32.pow(depth)/2;
+    for x in -max..max {
+        for y in -max..max {
+            for z in -max..max {
+                assert_eq!(NodeLocation::new(x, y, z, depth).unwrap().coordinates(), (x, y, z, depth));
+            }
+        }
+    }
+
+    assert_eq!(NodeLocation::new(-32324, 321234, -921239, 21).unwrap().coordinates(), (-32324, 321234, -921239, 21));
+}
 

@@ -7,10 +7,12 @@ const MAX_DEPTH: u32 = 21;
 
 impl NodeLocation {
     pub fn new(mut x: i32, mut y: i32, mut z: i32, depth: u32) -> Option<NodeLocation> {
-        let max = 2i32.pow(depth as u32)/2; // Max dimension for given depth
+        let mut max = 2i32.pow(depth as u32)/2; // Max dimension for given depth
         if  x >= max || x < -max ||
             y >= max || y < -max ||
             z >= max || z < -max {
+            println!("{:?}", (x, y, z));
+            println!("{:?}", (max));
             // x, y and z have to be within the max dimensions for this depth
             return None;
         }
@@ -21,18 +23,16 @@ impl NodeLocation {
         }
 
         let mut code = 1u64; // Start from root
-        for depth_level in (0..depth).rev() {
+        for _ in 0..depth {
             code <<= 3; // Shift 3 for every depth level
-
-            // Get the 
-            let max = 2i32.pow(depth_level) / 2; // Should be cheap as it's basically just a lshift and division
+            max /= 2; // Every depth level halves max
 
             // Fill in code for current child
             if x >= 0 { code |= 0b001 }; // Positive x has bit 0 set
             if y >= 0 { code |= 0b100 }; // Positive y has bit 2 set
             if z >= 0 { code |= 0b010 }; // Positive z has bit 1 set
 
-            // Shift the relevant 1/8th of the square to the middle
+            // Shift the relevant octant to the center
             if x >= 0 { x -= max } else { x += max }
             if y >= 0 { y -= max } else { y += max }
             if z >= 0 { z -= max } else { z += max }
@@ -61,6 +61,28 @@ impl NodeLocation {
 
     pub fn child_id(&self) -> ChildId {
         ChildId::from(self.0)
+    }
+
+    pub fn coordinates(&self) -> (i32, i32, i32, u32) {
+        let (mut x, mut y, mut z, mut depth) = (0, 0, 0, 0);
+        let mut code = self.0;
+
+        while code > 1 {
+            let max = 2i32.pow(depth) / 2;
+            let mut min = max;
+            // If last iteration is negative, we should subtract an extra because of the '>=' in the coord generation
+            if max < 1 { min = 1 }
+
+            if (code&0b001)>0 { x += max } else { x -= min } // If 1st bit is set, x is positive
+            if (code&0b100)>0 { y += max } else { y -= min } // If 3rd bit is set, y is positive
+            if (code&0b010)>0 { z += max } else { z -= min } // If 2nd bit is set, z is positive
+
+
+            code >>= 3;    
+            depth += 1;
+        }
+
+        (x, y, z, depth)
     }
 
     pub fn depth(&self) -> u32 {
