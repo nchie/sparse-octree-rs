@@ -1,5 +1,4 @@
 use sparse_octree::ChildId;
-use sparse_octree::SparseOctree;
 use sparse_octree::NodeLocation;
 
 
@@ -71,7 +70,7 @@ pub fn coordinates() {
         .child(ChildId::TRB).unwrap()
     );
 
-    let depth = 8;
+    let depth = 7;
     let max = 2_i32.pow(depth)/2;
     for x in -max..max {
         for y in -max..max {

@@ -1,6 +1,7 @@
 use sparse_octree::ChildId;
+use std::cmp::Ordering;
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, Eq)]
 pub struct NodeLocation(u64);
 
 const MAX_DEPTH: u32 = 21;
@@ -11,8 +12,6 @@ impl NodeLocation {
         if  x >= max || x < -max ||
             y >= max || y < -max ||
             z >= max || z < -max {
-            println!("{:?}", (x, y, z));
-            println!("{:?}", (max));
             // x, y and z have to be within the max dimensions for this depth
             return None;
         }
@@ -46,7 +45,13 @@ impl NodeLocation {
     }
 
     pub fn parent(&self) -> Option<NodeLocation> {
-        match self.depth() {
+        // match self.depth() {
+        //     1 => None,
+        //     _ => Some(NodeLocation(self.0 >> 3))
+        // }
+
+        // If self.0 is 1, we're already at the root node
+        match self.0 {
             1 => None,
             _ => Some(NodeLocation(self.0 >> 3))
         }
@@ -109,6 +114,39 @@ impl From<NodeLocation> for ChildId {
     }
 }
 
+impl Ord for NodeLocation {
+    // This way of ordering locations will sort them "depth-first" and thus we can easily hand out octants as slices when queried a location!
+    fn cmp(&self, other: &NodeLocation) -> Ordering {
+        // Count leading zeros for both
+        let self_lzc = self.0.leading_zeros();
+        let other_lzc = other.0.leading_zeros();
+
+        // Shift them so that the leading root bit is the most significant
+        let self_shifted = self.0 << self_lzc;
+        let other_shifted = other.0 << other_lzc;
+        
+        if self_shifted == other_shifted {
+            // If they're equal once shifted (which only happens when the code only has a single 1), we'll sort by leading amount of zeros instead
+            other_lzc.cmp(&self_lzc)
+        } else {
+            // Else, go by the shifted values
+            self_shifted.cmp(&other_shifted)
+        }
+    }
+}
+
+impl PartialOrd for NodeLocation {
+    fn partial_cmp(&self, other: &NodeLocation) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for NodeLocation {
+    fn eq(&self, other: &NodeLocation) -> bool {
+        self.0 == other.0
+    }
+}
+
 #[test]
 pub fn depth_tests() {
     let shallow_location = NodeLocation(0b1_101_000);
@@ -126,8 +164,10 @@ pub fn parent_tests() {
     let parent = location.parent();
     assert_eq!(parent, Some(NodeLocation(0b1_101)));
 
-    let grandparent = parent.unwrap().parent();
-    assert_eq!(grandparent, None);
+    let grandparent = parent.unwrap().parent().unwrap();
+    assert_eq!(grandparent, NodeLocation::new_root());
+
+    assert_eq!(grandparent.parent(), None);
 }
 
 #[test]
@@ -160,6 +200,5 @@ pub fn depth_max_dimensions() {
     assert_ne!(NodeLocation::new(1048575, -1048576, 1048575, 21), None); // Succeeds
     assert_eq!(NodeLocation::new(1048577, -1048576, 1048576, 21), None); // Fails
 }
-
 
 
