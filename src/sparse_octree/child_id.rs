@@ -1,14 +1,14 @@
 #[derive(Debug, Copy, Clone)]
 pub enum ChildId {
-    BLF = 0b000,
-    BRF = 0b001,
-    BLB = 0b010,
-    BRB = 0b011,
+    BLF = 0,
+    BRF = 1,
+    BLB = 2,
+    BRB = 3,
 
-    TLF = 0b100,
-    TRF = 0b101,
-    TLB = 0b110,
-    TRB = 0b111
+    TLF = 4,
+    TRF = 5,
+    TLB = 6,
+    TRB = 7
 }
 
 impl ChildId {

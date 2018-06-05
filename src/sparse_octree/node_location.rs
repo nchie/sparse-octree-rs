@@ -24,7 +24,7 @@ impl NodeLocation {
         let mut code = 1u64; // Start from root
         for _ in 0..depth {
             code <<= 3; // Shift 3 for every depth level
-            max /= 2; // Every depth level halves max
+            max /= 2; // Every depth level halves max dimensions
 
             // Fill in code for current child
             if x >= 0 { code |= 0b001 }; // Positive x has bit 0 set
@@ -85,16 +85,9 @@ impl NodeLocation {
     }
 
     pub fn depth(&self) -> u32 {
-        let mut code = self.code;
-        let mut depth = 0;
-
-        while code > 1 // Make sure code can NEVER be 0!
-        {
-            code >>= 3;
-            depth += 1;
-        };  
-
-        depth
+        // In the case of u64, subtracting max depth with (leading zeros+1)/3 will give current depth 
+        // and should be quicker than shifting
+        MAX_DEPTH-((self.code.leading_zeros()+1)/3)
     }
 
     pub fn disown(&self) -> (Option<NodeLocation>, ChildId) {
