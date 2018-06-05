@@ -20,26 +20,27 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
-    pub fn get_node(&self, location: NodeLocation) -> Option<&T> {
-        if let Some(&Node::Leaf(ref node)) = self.get(location) {
+    pub fn get_single(&self, location: NodeLocation) -> Option<&T> {
+        if let Some(&Node::Leaf(ref node)) = self.get_node(location) {
             Some( node )
         } else {
             None
         }
     }
 
-    pub fn set_node(&mut self, location: NodeLocation, t: T) -> Result<(), ()>
-    {
-        self.set(location, Node::Leaf(t))
-    }
-
-    pub fn get_nodes(&self, location: NodeLocation) -> Option<&[Node<T>]> {
+    pub fn get_slice(&self, location: NodeLocation) -> Option<&[Node<T>]> {
         if !self.sorted { return None };
-        if !self.map.contains_key(&location) { return None } // TODO: Change to return empty slice, or possibly ancestor leaf?
+        // TODO: Check if location has an ancestor leaf before returning empty?
+        if !self.map.contains_key(&location) { return Some(&[]) }  
 
         let index = self.map[&location];
         let count = self.count_from_index(index);
         Some(&self.storage[index..index+count])
+    }
+
+    pub fn set(&mut self, location: NodeLocation, t: T) -> Result<(), ()>
+    {
+        self.set_node(location, Node::Leaf(t))
     }
 
     pub fn sort(&mut self) {
@@ -71,6 +72,10 @@ impl<T: Clone> SparseOctree<T> {
 
         self.sorted = true;
     }
+
+    pub fn len(&self) -> usize {
+        self.storage.len()
+    }
 }
 
 // Private
@@ -92,7 +97,7 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
-    fn set(&mut self, location: NodeLocation, node: Node<T>) -> Result<(), ()> {
+    fn set_node(&mut self, location: NodeLocation, node: Node<T>) -> Result<(), ()> {
         // Make sure ancestors are pointing towards this (fails if an ancestor is a leaf)
         self.update_ancestors(location)?;
 
@@ -116,7 +121,7 @@ impl<T: Clone> SparseOctree<T> {
     fn update_ancestors(&mut self, location: NodeLocation) -> Result<(), ()> {
         if let (Some(parent_location), child_id) = location.disown() {
             // If it has a parent
-            if let Some(node) = self.get_mut(parent_location) {
+            if let Some(node) = self.get_node_mut(parent_location) {
                 match *node {
                     Node::Branch(ref mut f) => {
                         // Not a first-child, set just set the flag and stop recursing!
@@ -130,7 +135,7 @@ impl<T: Clone> SparseOctree<T> {
                 }
             } else {
                 // If parent didn't exist, set it
-                self.set(parent_location, Node::Branch(child_id.flag())) // TODO: Change to actual flag from ChildId
+                self.set_node(parent_location, Node::Branch(child_id.flag())) // TODO: Change to actual flag from ChildId
             }
         } else {
             // If no parent, stop recursing
@@ -138,7 +143,7 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
-    fn get(&self, location: NodeLocation) -> Option<&Node<T>> {
+    pub fn get_node(&self, location: NodeLocation) -> Option<&Node<T>> {
         let index = self.map.get(&location);
         match index {
             // If map has an index for the code, a node exists
@@ -147,9 +152,8 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
-    fn get_mut(&mut self, location: NodeLocation) -> Option<&mut Node<T>> {
+    pub fn get_node_mut(&mut self, location: NodeLocation) -> Option<&mut Node<T>> {
         let index = self.map.get(&location);
-        //println!("get location: {:?}", location);
         match index {
             // If map has an index for the location, a node exists
             Some(&x) => Some( self.storage.get_mut(x).unwrap() ),  // Unwrap should be safe here as it should always exist
@@ -167,97 +171,7 @@ pub enum Node<T> {
 
 
 
-#[test]
-fn set_and_get() {
-    use sparse_octree::ChildId;
 
-    let mut octree = SparseOctree::<u64>::new();
-    let location1 = NodeLocation::new_root() //0b1_000_000
-        .child(ChildId::BLF).unwrap()
-        .child(ChildId::BLF).unwrap();
-    let location2 = NodeLocation::new_root() //0b1_000_001_111
-        .child(ChildId::BLF).unwrap()
-        .child(ChildId::BRF).unwrap()
-        .child(ChildId::TRB).unwrap(); 
 
-    octree.set_node(location1, 1).unwrap();
-    octree.set_node(location2, 2).unwrap();
-    
-    // Succeeds
-    assert!(octree.get_node(location1) == Some(&1));
-    assert!(octree.get_node(location2) == Some(&2));
 
-    // Fails because the parent is a leaf
-    let child_location = location1.child(ChildId::BLB).unwrap();
-    assert!(octree.set_node(child_location, 0) == Err(()));
 
-    // Make sure their common branch has set its child flags correctly
-    let child_id1 = location1.child_id();
-    let child_id2 = location2.parent().unwrap().child_id();
-    let common_parent_location = location1.parent().unwrap();
-    assert!(octree.get(common_parent_location) == Some(&Node::Branch(child_id1.flag() | child_id2.flag())));
-}
-
-#[test]
-pub fn sort() {
-    use sparse_octree::ChildId;
-
-    let mut octree = SparseOctree::<u64>::new();
-    let parent_location = NodeLocation::new_root();
-
-    let location1 = parent_location.child(ChildId::BLF).unwrap();
-    let location2 = parent_location.child(ChildId::BLB).unwrap();
-    let location3 = parent_location.child(ChildId::TLF).unwrap();
-    let location4 = parent_location.child(ChildId::TRB).unwrap();
-    
-    octree.set_node(location2, 2).unwrap();
-    octree.set_node(location4, 4).unwrap();
-    octree.set_node(location1, 1).unwrap();
-    octree.set_node(location3, 3).unwrap();
-
-    println!("storage: {:?}, map: {:?}", octree.storage, octree.map);
-    octree.sort();
-    println!("storage: {:?}, map: {:?}", octree.storage, octree.map);
-
-    // Make sure querying still works
-    assert_eq!(octree.get_node(location1).unwrap(), &1u64);
-    assert_eq!(octree.get_node(location2).unwrap(), &2u64);
-    assert_eq!(octree.get_node(location3).unwrap(), &3u64);
-    assert_eq!(octree.get_node(location4).unwrap(), &4u64);
-}
-
-#[test]
-pub fn count1() {
-    let mut octree = SparseOctree::<&str>::new();
-    let root = NodeLocation::new_root();
-
-    octree.set_node(root
-                        .child(0b000.into()).unwrap(), "1 000").unwrap();
-
-    octree.set_node(root
-                        .child(0b001.into()).unwrap()
-                            .child(0b000.into()).unwrap(), "1 001 000").unwrap();
-    octree.set_node(root
-                        .child(0b001.into()).unwrap()
-                            .child(0b001.into()).unwrap(), "1 001 001").unwrap();
-
-    octree.set_node(root
-                        .child(0b010.into()).unwrap(), "1 010").unwrap();
-    octree.set_node(root
-                        .child(0b011.into()).unwrap(), "1 011").unwrap();
-
-    octree.set_node(root
-                        .child(0b111.into()).unwrap()
-                            .child(0b000.into()).unwrap(), "1 111 000").unwrap();
-
-    octree.set_node(root
-                        .child(0b100.into()).unwrap()
-                            .child(0b001.into()).unwrap()
-                                .child(0b001.into()).unwrap(), "1 100 001 001").unwrap();
-
-    octree.sort();
-
-    let search_node = root.child(111.into()).unwrap();
-    assert_eq!(octree.get_nodes(root).unwrap().len(), octree.storage.len());
-    assert_eq!(octree.get_nodes(search_node).unwrap(), &[Node::Branch(1), Node::Leaf("1 111 000")]);
-}

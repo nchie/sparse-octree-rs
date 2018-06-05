@@ -2,7 +2,7 @@ use sparse_octree::ChildId;
 use std::cmp::Ordering;
 
 #[derive(Debug, Copy, Clone, Hash, Eq)]
-pub struct NodeLocation(u64);
+pub struct NodeLocation { code: u64 }
 
 const MAX_DEPTH: u32 = 21;
 
@@ -12,11 +12,11 @@ impl NodeLocation {
         if  x >= max || x < -max ||
             y >= max || y < -max ||
             z >= max || z < -max {
-            // x, y and z have to be within the max dimensions for this depth
+            // x, y and z have to be within the max dimensions for given depth
             return None;
         }
 
-        // u64 only supports up to 21 in depth
+        // u64 only supports a depth of up to 21
         if depth > MAX_DEPTH {
             return None;
         }
@@ -36,41 +36,35 @@ impl NodeLocation {
             if y >= 0 { y -= max } else { y += max }
             if z >= 0 { z -= max } else { z += max }
         }
-        Some(NodeLocation(code))
+        Some(NodeLocation{ code })
     }
 
-    // TODO: Remove
     pub fn new_root() -> NodeLocation {
-        NodeLocation(1)
+        NodeLocation{ code: 1 }
     }
 
     pub fn parent(&self) -> Option<NodeLocation> {
-        // match self.depth() {
-        //     1 => None,
-        //     _ => Some(NodeLocation(self.0 >> 3))
-        // }
-
-        // If self.0 is 1, we're already at the root node
-        match self.0 {
+        // If self.code is 1, we're already at the root node
+        match self.code {
             1 => None,
-            _ => Some(NodeLocation(self.0 >> 3))
+            _ => Some(NodeLocation{ code: self.code >> 3 })
         }
     }
 
-    pub fn child(&self, code: ChildId) -> Option<NodeLocation> {
+    pub fn child(&self, child: ChildId) -> Option<NodeLocation> {
         match self.depth() {
             depth if depth >= MAX_DEPTH => None,
-            _ => Some(NodeLocation((self.0 << 3) | code as u64))
+            _ => Some(NodeLocation{ code: (self.code << 3) | child as u64 })
         }
     }
 
     pub fn child_id(&self) -> ChildId {
-        ChildId::from(self.0)
+        ChildId::from(self.code)
     }
 
     pub fn coordinates(&self) -> (i32, i32, i32, u32) {
         let (mut x, mut y, mut z, mut depth) = (0, 0, 0, 0);
-        let mut code = self.0;
+        let mut code = self.code;
 
         while code > 1 {
             let max = 2i32.pow(depth) / 2;
@@ -91,7 +85,7 @@ impl NodeLocation {
     }
 
     pub fn depth(&self) -> u32 {
-        let mut code = self.0;
+        let mut code = self.code;
         let mut depth = 0;
 
         while code > 1 // Make sure code can NEVER be 0!
@@ -110,7 +104,7 @@ impl NodeLocation {
 
 impl From<NodeLocation> for ChildId {
     fn from(from: NodeLocation) -> ChildId {
-        from.0.into()
+        from.code.into()
     }
 }
 
@@ -118,12 +112,12 @@ impl Ord for NodeLocation {
     // This way of ordering locations will sort them "depth-first" and thus we can easily hand out octants as slices when queried a location!
     fn cmp(&self, other: &NodeLocation) -> Ordering {
         // Count leading zeros for both
-        let self_lzc = self.0.leading_zeros();
-        let other_lzc = other.0.leading_zeros();
+        let self_lzc = self.code.leading_zeros();
+        let other_lzc = other.code.leading_zeros();
 
         // Shift them so that the leading root bit is the most significant
-        let self_shifted = self.0 << self_lzc;
-        let other_shifted = other.0 << other_lzc;
+        let self_shifted = self.code << self_lzc;
+        let other_shifted = other.code << other_lzc;
         
         if self_shifted == other_shifted {
             // If they're equal once shifted (which only happens when the code only has a single 1), we'll sort by leading amount of zeros instead
@@ -143,26 +137,26 @@ impl PartialOrd for NodeLocation {
 
 impl PartialEq for NodeLocation {
     fn eq(&self, other: &NodeLocation) -> bool {
-        self.0 == other.0
+        self.code == other.code
     }
 }
 
 #[test]
 pub fn depth_tests() {
-    let shallow_location = NodeLocation(0b1_101_000);
+    let shallow_location = NodeLocation{ code: 0b1_101_000};
     assert_eq!(shallow_location.depth(), 2);
     assert_eq!(shallow_location.parent().unwrap().depth(), 1);
     assert_eq!(shallow_location.child(ChildId::BLB).unwrap().depth(), 3);
 
-    let deep_location = NodeLocation(0x0800_0000_0000_0000);
+    let deep_location = NodeLocation{ code: 0x0800_0000_0000_0000 };
     assert_eq!(deep_location.depth(), 20);
 }
 
 #[test]
 pub fn parent_tests() {
-    let location = NodeLocation(0b1_101_000);
+    let location = NodeLocation{ code: 0b1_101_000 };
     let parent = location.parent();
-    assert_eq!(parent, Some(NodeLocation(0b1_101)));
+    assert_eq!(parent, Some(NodeLocation{ code: 0b1_101 }));
 
     let grandparent = parent.unwrap().parent().unwrap();
     assert_eq!(grandparent, NodeLocation::new_root());
@@ -172,33 +166,14 @@ pub fn parent_tests() {
 
 #[test]
 pub fn child_tests() {
-    let location = NodeLocation(0x0800_0000_0000_0000);
+    let location = NodeLocation{ code: 0x0800_0000_0000_0000 };
 
     let child = location.child(ChildId::BLF);
-    assert_eq!(child, Some(NodeLocation(0x4000_0000_0000_0000)));
+    assert_eq!(child, Some(NodeLocation { code: 0x4000_0000_0000_0000 }));
 
     let grandchild = child.unwrap().child(ChildId::BLF);
     assert_eq!(grandchild, None);
 }
 
-
-#[test]
-pub fn depth_max_dimensions() {
-    // Depth of 1 allows coordinates between -1 to 1-1
-    assert_ne!(NodeLocation::new(-1, 0, -1, 1), None); // Succeeds
-    assert_eq!(NodeLocation::new(-2, 1, -1, 1), None); // Fails
-
-    // Depth of 2 allows coordinates between -2 to 2-1
-    assert_ne!(NodeLocation::new(-2, 1, -2, 2), None); // Succeeds
-    assert_eq!(NodeLocation::new(-2, 2, -2, 2), None); // Fails
-
-    // Depth of 4 allows coordinates between -8 to 8-1
-    assert_ne!(NodeLocation::new(7, 7, -8, 4), None); // Succeeds
-    assert_eq!(NodeLocation::new(-7, 9, 7, 4), None); // Fails
-
-    // Depth of 21 allows coordinates from -1048576 to 1048576-1
-    assert_ne!(NodeLocation::new(1048575, -1048576, 1048575, 21), None); // Succeeds
-    assert_eq!(NodeLocation::new(1048577, -1048576, 1048576, 21), None); // Fails
-}
 
 

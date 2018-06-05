@@ -2,7 +2,6 @@ use sparse_octree::ChildId;
 use sparse_octree::NodeLocation;
 
 
-
 #[test]
 pub fn depth_max_dimensions() {
     // Depth of 1 allows coordinates between -1 to 1-1
