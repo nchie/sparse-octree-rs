@@ -1,8 +1,8 @@
-use sparse_octree::{ SparseOctree, Node, NodeLocation };
 
 #[test]
 fn set_and_get_node() {
-    use sparse_octree::ChildId;
+    use sparse_octree::{ ChildId, SparseOctree, Node, NodeLocation };
+
 
     let mut octree = SparseOctree::<u64>::new();
     let location1 = NodeLocation::new_root() //0b1_000_000
@@ -32,33 +32,34 @@ fn set_and_get_node() {
 }
 
 #[test]
-pub fn count1() {
+pub fn sort_count_and_slice() {
+    use sparse_octree::{ SparseOctree, Node, NodeLocation };
     let mut octree = SparseOctree::<&str>::new();
     let root = NodeLocation::new_root();
 
     octree.set(root
-                        .child(0b000.into()).unwrap(), "1 000").unwrap();
+                .child(0b000.into()).unwrap(), "1 000").unwrap();
 
     octree.set(root
-                        .child(0b001.into()).unwrap()
-                            .child(0b000.into()).unwrap(), "1 001 000").unwrap();
+                .child(0b001.into()).unwrap()
+                    .child(0b000.into()).unwrap(), "1 001 000").unwrap();
     octree.set(root
-                        .child(0b001.into()).unwrap()
-                            .child(0b001.into()).unwrap(), "1 001 001").unwrap();
+                .child(0b001.into()).unwrap()
+                    .child(0b001.into()).unwrap(), "1 001 001").unwrap();
 
     octree.set(root
-                        .child(0b010.into()).unwrap(), "1 010").unwrap();
+                .child(0b010.into()).unwrap(), "1 010").unwrap();
     octree.set(root
-                        .child(0b011.into()).unwrap(), "1 011").unwrap();
+                .child(0b011.into()).unwrap(), "1 011").unwrap();
 
     octree.set(root
-                        .child(0b111.into()).unwrap()
-                            .child(0b000.into()).unwrap(), "1 111 000").unwrap();
+                .child(0b111.into()).unwrap()
+                    .child(0b000.into()).unwrap(), "1 111 000").unwrap();
 
     octree.set(root
-                        .child(0b100.into()).unwrap()
-                            .child(0b001.into()).unwrap()
-                                .child(0b001.into()).unwrap(), "1 100 001 001").unwrap();
+                .child(0b100.into()).unwrap()
+                    .child(0b001.into()).unwrap()
+                        .child(0b001.into()).unwrap(), "1 100 001 001").unwrap();
 
     octree.sort();
 
@@ -69,7 +70,7 @@ pub fn count1() {
 
 #[test]
 pub fn sort() {
-    use sparse_octree::ChildId;
+    use sparse_octree::{ ChildId, SparseOctree, NodeLocation };
 
     let mut octree = SparseOctree::<u64>::new();
     let parent_location = NodeLocation::new_root();

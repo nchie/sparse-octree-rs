@@ -152,7 +152,7 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
-    pub fn get_node_mut(&mut self, location: NodeLocation) -> Option<&mut Node<T>> {
+    fn get_node_mut(&mut self, location: NodeLocation) -> Option<&mut Node<T>> {
         let index = self.map.get(&location);
         match index {
             // If map has an index for the location, a node exists
