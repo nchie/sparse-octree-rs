@@ -7,7 +7,7 @@ pub use self::child_id::ChildId;
 pub use self::node_location::NodeLocation;
 pub use self::sparse_octree::Node;
 
-
+pub const MAX_DEPTH: u32 = 21;
 
 
 

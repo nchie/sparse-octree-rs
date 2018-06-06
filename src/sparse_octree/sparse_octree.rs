@@ -1,12 +1,14 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
-use sparse_octree::NodeLocation;
+use sparse_octree::{ MAX_DEPTH, NodeLocation };
 
 pub struct SparseOctree<T: Clone> {
     storage: Vec<Node<T>>,
     map: HashMap<NodeLocation, usize>,
-    max_depth: u32,
-    sorted: bool
+    depth: u32,
+    unsorted: HashSet<NodeLocation>,
+    unused: Vec<usize>
 }
 
 // Public
@@ -14,9 +16,10 @@ impl<T: Clone> SparseOctree<T> {
     pub fn new() -> SparseOctree<T> {
         SparseOctree::<T>{
             storage: Vec::new(),
-            map: HashMap::<NodeLocation, usize>::new(),
-            max_depth: 0,
-            sorted: false
+            map: HashMap::new(),
+            depth: 0,
+            unsorted: HashSet::new(),
+            unused: Vec::new()
         }
     }
 
@@ -28,14 +31,77 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
+    pub fn get_octant(&self, location: NodeLocation) -> Option<Octant<T>> {
+        // If location is marked as unsorted
+        if self.unsorted.contains(&location) { return None };
+        // TODO: Check if location has an ancestor leaf before returning empty?
+        if !self.map.contains_key(&location) { return None } // TODO: Return empty octant?  
+
+        let index = self.map[&location];
+        let (count, depth) = self.count_from_index(index);
+
+        Some(Octant {
+            data: self.storage[index..index+count].to_vec(),
+            depth: depth
+        })
+    }
+
     pub fn get_slice(&self, location: NodeLocation) -> Option<&[Node<T>]> {
-        if !self.sorted { return None };
+        // If location is marked as unsorted
+        if self.unsorted.contains(&location) { return None };
         // TODO: Check if location has an ancestor leaf before returning empty?
         if !self.map.contains_key(&location) { return Some(&[]) }  
 
         let index = self.map[&location];
-        let count = self.count_from_index(index);
+        let (count, _depth) = self.count_from_index(index);
+        println!("depth: {}", _depth); // TODO: Make sure depth calculation is correct
         Some(&self.storage[index..index+count])
+    }
+
+    pub fn set_octant(&mut self, octant: Octant<T>, location: NodeLocation) {
+        if location.depth() + octant.depth > MAX_DEPTH {
+            // Error, octree would end up too deep!
+        }
+
+        // Check if location has leaf ancestor
+        //      If has, mark old ancestor as unused and create new from there?
+
+        // Check whether octant exists at location
+        if let Some(&index) = self.map.get(&location) {
+            // If it exists, mark as unused and clear lookup entries!
+            let (old_len, _depth) = self.count_from_index(index);
+            if old_len == octant.data.len() {
+                // TODO: If same length, remove old lookups, overwrite in storage then add new lookups!
+            }
+            else {
+
+            }
+            
+        } 
+        
+        // insert new octant into back of storage
+        // ...
+        // recurse through new structure, adding lookup entries
+        // ...
+        // mark ancestors as unsorted
+        self.set_ancestors_unsorted(location);
+    }
+
+    fn clear_location(&mut self, location: NodeLocation) {
+        // TODO: Make nodes as unused
+        self.clear_lookup(location);
+    }
+
+    fn clear_lookup(&mut self, location: NodeLocation) {
+        // TODO: This is O(n), but it should be possible to make it more efficient by iterating
+        // through the old removed indices and removing their lookup entries!
+        self.map.retain(|&iter_location, _|{
+            if iter_location >= location || iter_location < location.next() { 
+                false
+            } else {
+                true
+            }
+        });
     }
 
     pub fn set(&mut self, location: NodeLocation, t: T) -> Result<(), ()>
@@ -50,6 +116,8 @@ impl<T: Clone> SparseOctree<T> {
 
         // Swap out the old storage with an empty but allocated new one
         let mut old_storage = Vec::with_capacity(self.storage.len());
+
+        // TODO: Don't insert unused nodes and clear self.storage afterwards
         std::mem::swap(&mut self.storage, &mut old_storage);
 
         // Clear the old map into a vec
@@ -58,7 +126,7 @@ impl<T: Clone> SparseOctree<T> {
         }
 
         // Sort the vec
-        kv_vec.sort_by_key(|kv| { kv.0 });
+        kv_vec.sort_unstable_by_key(|kv| { kv.0 });
 
         // Insert the nodes from old_storage into the new, but in correct order
         for (_, v) in kv_vec.iter() {
@@ -70,30 +138,40 @@ impl<T: Clone> SparseOctree<T> {
             self.map.insert(*k, i);
         }
 
-        self.sorted = true;
+        // Everything's back to sorted!
+        self.unsorted.clear();
     }
 
     pub fn len(&self) -> usize {
         self.storage.len()
     }
+
 }
 
 // Private
 impl<T: Clone> SparseOctree<T> {
-    fn count_from_index(&self, index: usize) -> usize {
+    fn ancestor(&self, location: NodeLocation) -> NodeLocation {
+        // TODO: Find nearest existing ancestor node
+        NodeLocation::new_root()
+    }
+
+    fn count_from_index(&self, index: usize) -> (usize, u32) {
 
         match &self.storage[index] {
             Node::Branch(ref f) => {
-                let mut count = 1; 
+                let mut count = 1;
 
                 // Count children and loop through them recursively, incrementing the index by the amount of nodes read
                 let bit_count = f.count_ones() as usize;
+                let mut highest_depth = 0;
                 for _ in 0..bit_count {
-                    count+=self.count_from_index(index+count);
+                    let (inner_count, depth) = self.count_from_index(index+count);
+                    count+=inner_count;
+                    if depth > highest_depth { highest_depth = depth }
                 }
-                count
+                (count, highest_depth+1)
             },
-            Node::Leaf(_) => 1
+            Node::Leaf(_) => (1, 0)
         }
     }
 
@@ -101,8 +179,8 @@ impl<T: Clone> SparseOctree<T> {
         // Make sure ancestors are pointing towards this (fails if an ancestor is a leaf)
         self.update_ancestors(location)?;
 
-        if location.depth() > self.max_depth { 
-            self.max_depth = location.depth() 
+        if location.depth() > self.depth { 
+            self.depth = location.depth() 
         };
 
         if let Some(index) = self.map.insert(location, self.storage.len()) {
@@ -112,8 +190,8 @@ impl<T: Clone> SparseOctree<T> {
             // Else create room for a new node
             self.storage.push(node);
 
-            // Inserting into the end means we're most likely not sorted anymore.
-            self.sorted = false;
+            // Assume that nodes added this way will make their ancestors unsorted
+            self.set_ancestors_unsorted(location);
         }
         Ok(())
     }
@@ -143,6 +221,19 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
+    fn set_ancestors_unsorted(&mut self, mut location: NodeLocation) {
+        // Recursively update parents to be unsorted
+        while let Some(parent_location) = location.parent() {
+            if self.unsorted.insert(parent_location) {
+                // If parent did not exist in unsorted, keep recursing
+                location = parent_location;
+            } else {
+                // We ran into an unsorted ancestor so we can stop recursing
+                return;
+            }
+        }
+    }
+
     pub fn get_node(&self, location: NodeLocation) -> Option<&Node<T>> {
         let index = self.map.get(&location);
         match index {
@@ -169,6 +260,22 @@ pub enum Node<T> {
     Leaf(T)
 }
 
+
+pub struct Internal {
+    children: u8,
+    sorted: bool
+}
+
+
+pub struct Octant<T: Clone> {
+    data: Vec<Node<T>>,
+    depth: u32
+}
+
+impl<T: Clone> Octant<T> {
+    pub fn depth(&self) -> u32 { self.depth }
+
+}
 
 
 

@@ -1,10 +1,8 @@
-use sparse_octree::ChildId;
+use sparse_octree::{ MAX_DEPTH, ChildId };
 use std::cmp::Ordering;
 
 #[derive(Debug, Copy, Clone, Hash, Eq)]
 pub struct NodeLocation { code: u64 }
-
-const MAX_DEPTH: u32 = 21;
 
 impl NodeLocation {
     pub fn new(mut x: i32, mut y: i32, mut z: i32, depth: u32) -> Option<NodeLocation> {
@@ -92,6 +90,10 @@ impl NodeLocation {
 
     pub fn disown(&self) -> (Option<NodeLocation>, ChildId) {
         (self.parent(), self.child_id())
+    }
+
+    pub fn next(&self) -> NodeLocation {
+        NodeLocation{ code: self.code+1 }
     }
 }
 

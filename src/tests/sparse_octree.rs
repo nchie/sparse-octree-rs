@@ -61,11 +61,14 @@ pub fn sort_count_and_slice() {
                     .child(0b001.into()).unwrap()
                         .child(0b001.into()).unwrap(), "1 100 001 001").unwrap();
 
+    assert_eq!(octree.get_slice(root), None); // Expect none if unsorted
+
     octree.sort();
 
     let search_node = root.child(111.into()).unwrap();
     assert_eq!(octree.get_slice(root).unwrap().len(), octree.len());
     assert_eq!(octree.get_slice(search_node).unwrap(), &[Node::Branch(1), Node::Leaf("1 111 000")]);
+    //assert!(false);
 }
 
 #[test]
