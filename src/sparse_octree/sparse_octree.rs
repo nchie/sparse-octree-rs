@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use sparse_octree::{ MAX_DEPTH, NodeLocation };
+use sparse_octree::lookup::{ gen_lookup, remove_lookup, for_each_continuous_node };
 
 pub struct SparseOctree<T: Clone> {
     storage: Vec<Node<T>>,
@@ -31,7 +32,7 @@ impl<T: Clone> SparseOctree<T> {
         }
     }
 
-    pub fn get_octant(&self, location: NodeLocation) -> Option<Octant<T>> {
+    pub fn clone_subtree(&self, location: NodeLocation) -> Option<SparseOctree<T>> {
         // If location is marked as unsorted
         if self.unsorted.contains(&location) { return None };
         // TODO: Check if location has an ancestor leaf before returning empty?
@@ -40,9 +41,16 @@ impl<T: Clone> SparseOctree<T> {
         let index = self.map[&location];
         let (count, depth) = self.count_from_index(index);
 
-        Some(Octant {
-            data: self.storage[index..index+count].to_vec(),
-            depth: depth
+        let storage = self.storage[index..index+count].to_vec();
+        let mut lookup = HashMap::new();
+        gen_lookup(NodeLocation::new_root(), &storage, &mut lookup);
+
+        Some(SparseOctree {
+            storage: storage,
+            map: lookup,
+            depth: depth,
+            unsorted: HashSet::new(), // Subtree has to be sorted already
+            unused: Vec::new()        // If the subtree is sorted, there are no unused nodes
         })
     }
 
@@ -58,8 +66,8 @@ impl<T: Clone> SparseOctree<T> {
         Some(&self.storage[index..index+count])
     }
 
-    pub fn set_octant(&mut self, octant: Octant<T>, location: NodeLocation) {
-        if location.depth() + octant.depth > MAX_DEPTH {
+    pub fn insert_subtree(&mut self, subtree: SparseOctree<T>, location: NodeLocation) {
+        if location.depth() + subtree.depth > MAX_DEPTH {
             // Error, octree would end up too deep!
         }
 
@@ -69,12 +77,23 @@ impl<T: Clone> SparseOctree<T> {
         // Check whether octant exists at location
         if let Some(&index) = self.map.get(&location) {
             // If it exists, mark as unused and clear lookup entries!
-            let (old_len, _depth) = self.count_from_index(index);
-            if old_len == octant.data.len() {
-                // TODO: If same length, remove old lookups, overwrite in storage then add new lookups!
-            }
-            else {
+            let (length, _depth) = self.count_from_index(index);
 
+            // Remove old lookups
+            remove_lookup(location, &self.storage[index..index+length], &mut self.map);
+
+            if length == subtree.storage.len() {
+                // Overwrite in storage and generate new lookups
+
+                // Generate new lookups
+                gen_lookup(location, &self.storage[index..index+length], &mut self.map);
+            } else {
+                // Insert into back of array
+
+                // Mark old nodes as unused
+
+                // Generate new lookups
+                gen_lookup(location, &self.storage[index..index+length], &mut self.map);
             }
             
         } 
@@ -150,6 +169,19 @@ impl<T: Clone> SparseOctree<T> {
 
 // Private
 impl<T: Clone> SparseOctree<T> {
+    fn detach(&mut self, location: NodeLocation) {
+        if !self.unsorted.contains(&location) {
+            let &index = self.map.get(&location).unwrap();
+            // Iterate continuous nodes and remove all lookups
+            for_each_continuous_node(&self.storage[index..], &mut |location, index| {
+                
+            })
+        } else {
+            // Iterate through lookups to remove all lookup entries
+        }
+    }
+
+
     fn ancestor(&self, location: NodeLocation) -> NodeLocation {
         // TODO: Find nearest existing ancestor node
         NodeLocation::new_root()
@@ -253,7 +285,6 @@ impl<T: Clone> SparseOctree<T> {
     }
 }
 
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Node<T> {
     Branch(u8),
@@ -261,24 +292,35 @@ pub enum Node<T> {
 }
 
 
-pub struct Internal {
-    children: u8,
-    sorted: bool
+
+
+#[test]
+pub fn lookup_removal_insertion() {
+    use sparse_octree::ChildId;
+
+    let mut octree = SparseOctree::<u64>::new();
+
+    let root = NodeLocation::new_root().child(ChildId::BLF).unwrap();
+
+    let location1 = root
+        .child(ChildId::BLF).unwrap()
+        .child(ChildId::BLF).unwrap();
+    let location2 = root
+        .child(ChildId::BLF).unwrap()
+        .child(ChildId::BRF).unwrap()
+        .child(ChildId::TRB).unwrap(); 
+
+    octree.set(location1, 1).unwrap();
+    octree.set(location2, 2).unwrap();
+
+    let mut lookup = HashMap::new();
+
+    octree.sort();
+
+    // TODO: This only works if relevant slice is passed, not whole storage?
+    gen_lookup(NodeLocation::new_root().child(ChildId::BLF).unwrap(), &octree.storage, &mut lookup);
+    assert_eq!(lookup, octree.map);
+
+    remove_lookup(NodeLocation::new_root(), &octree.storage, &mut lookup);
+    assert_eq!(lookup, HashMap::new());
 }
-
-
-pub struct Octant<T: Clone> {
-    data: Vec<Node<T>>,
-    depth: u32
-}
-
-impl<T: Clone> Octant<T> {
-    pub fn depth(&self) -> u32 { self.depth }
-
-}
-
-
-
-
-
-
